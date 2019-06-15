@@ -4,35 +4,37 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptrace"
+	"sync"
 	"time"
 )
 
 var (
-	awsendpoints []string
+	awsendpoints map[string]string
 )
 
 func init() {
-	awsendpoints = []string{"https://dynamodb.us-east-1.amazonaws.com/",
-		"https://dynamodb.us-east-2.amazonaws.com/",
-		"https://dynamodb.us-west-1.amazonaws.com/",
-		"https://dynamodb.us-west-2.amazonaws.com/",
-		"https://dynamodb.ca-central-1.amazonaws.com/",
-		"https://dynamodb.eu-west-1.amazonaws.com/",
-		"https://dynamodb.eu-west-2.amazonaws.com/",
-		"https://dynamodb.eu-central-1.amazonaws.com/",
-		"https://dynamodb.eu-west-3.amazonaws.com/",
-		"https://dynamodb.eu-north-1.amazonaws.com/",
-		"https://dynamodb.ap-south-1.amazonaws.com/",
-		"https://dynamodb.ap-northeast-3.amazonaws.com/",
-		"https://dynamodb.ap-northeast-2.amazonaws.com/",
-		"https://dynamodb.ap-southeast-1.amazonaws.com/",
-		"https://dynamodb.ap-southeast-2.amazonaws.com/",
-		"https://dynamodb.ap-northeast-1.amazonaws.com/",
-		"https://dynamodb.sa-east-1.amazonaws.com/",
-		"https://dynamodb.cn-north-1.amazonaws.com.cn/",
-		"https://dynamodb.cn-northwest-1.amazonaws.com.cn/",
-		"https://dynamodb.us-gov-east-1.amazonaws.com/",
-		"https://dynamodb.us-gov-west-1.amazonaws.com/",
+	awsendpoints = map[string]string{
+		"us-east-1":      "https://dynamodb.us-east-1.amazonaws.com/",
+		"us-east-2":      "https://dynamodb.us-east-2.amazonaws.com/",
+		"us-west-1":      "https://dynamodb.us-west-1.amazonaws.com/",
+		"us-west-2":      "https://dynamodb.us-west-2.amazonaws.com/",
+		"ca-central-1":   "https://dynamodb.ca-central-1.amazonaws.com/",
+		"eu-west-1":      "https://dynamodb.eu-west-1.amazonaws.com/",
+		"eu-west-2":      "https://dynamodb.eu-west-2.amazonaws.com/",
+		"eu-central-1":   "https://dynamodb.eu-central-1.amazonaws.com/",
+		"eu-west-3":      "https://dynamodb.eu-west-3.amazonaws.com/",
+		"eu-north-1":     "https://dynamodb.eu-north-1.amazonaws.com/",
+		"ap-south-1":     "https://dynamodb.ap-south-1.amazonaws.com/",
+		"ap-northeast-3": "https://dynamodb.ap-northeast-3.amazonaws.com/",
+		"ap-northeast-2": "https://dynamodb.ap-northeast-2.amazonaws.com/",
+		"ap-southeast-1": "https://dynamodb.ap-southeast-1.amazonaws.com/",
+		"ap-southeast-2": "https://dynamodb.ap-southeast-2.amazonaws.com/",
+		"ap-northeast-1": "https://dynamodb.ap-northeast-1.amazonaws.com/",
+		"sa-east-1":      "https://dynamodb.sa-east-1.amazonaws.com/",
+		"cn-north-1":     "https://dynamodb.cn-north-1.amazonaws.com.cn/",
+		"cn-northwest-1": "https://dynamodb.cn-northwest-1.amazonaws.com.cn/",
+		"us-gov-east-1":  "https://dynamodb.us-gov-east-1.amazonaws.com/",
+		"us-gov-west-1":  "https://dynamodb.us-gov-west-1.amazonaws.com/",
 	}
 }
 
@@ -40,13 +42,14 @@ type CloudPing struct {
 }
 
 type PingItem struct {
-	URL                 string
-	Err                 error
-	DNStime             time.Duration
-	TCPtime             time.Duration
-	FirstByteResponse   time.Duration
-	ContentDownloadTime time.Duration
-	ConnectionTime      time.Duration
+	Region            string
+	URL               string
+	Err               error
+	DNSLookup         time.Duration
+	TCPConnection     time.Duration
+	FirstByteResponse time.Duration
+	ContentTransfer   time.Duration
+	TotalTime         time.Duration
 }
 
 func NewCloudPing() *CloudPing {
@@ -57,14 +60,43 @@ func (c *CloudPing) RunAWSTest() []PingItem {
 
 	list := []PingItem{}
 
-	for i := 0; i < len(awsendpoints); i++ {
+	for region, uri := range awsendpoints {
+
 		var pi = PingItem{}
-		pi, pi.Err = c.do("GET", awsendpoints[i])
+		pi.Region = region
+		pi, pi.Err = c.do("GET", uri)
 
 		list = append(list, pi)
 	}
 
 	return list
+}
+
+func (c *CloudPing) RunAWSTestAsync() []PingItem {
+
+	var wg sync.WaitGroup
+	var items = []PingItem{}
+
+	for rg, u := range awsendpoints {
+
+		wg.Add(1)
+
+		go func(region, uri string, wag *sync.WaitGroup) {
+
+			pi, err := c.do("GET", uri)
+			pi.Err = err
+			pi.Region = region
+
+			items = append(items, pi)
+
+			wag.Done()
+
+		}(rg, u, &wg)
+	}
+
+	wg.Wait()
+
+	return items
 }
 
 func (c *CloudPing) do(method, url string) (ping PingItem, err error) {
@@ -109,11 +141,11 @@ func (c *CloudPing) do(method, url string) (ping PingItem, err error) {
 		dnsStartTime = dnsDoneTime
 	}
 
-	ping.DNStime = dnsDoneTime.Sub(dnsStartTime)
-	ping.TCPtime = gotConnTime.Sub(dnsDoneTime)
+	ping.DNSLookup = dnsDoneTime.Sub(dnsStartTime)
+	ping.TCPConnection = gotConnTime.Sub(dnsDoneTime)
 	ping.FirstByteResponse = gotFRB.Sub(gotConnTime)
-	ping.ContentDownloadTime = readBody.Sub(gotFRB)
-	ping.ConnectionTime = readBody.Sub(dnsStartTime)
+	ping.ContentTransfer = readBody.Sub(gotFRB)
+	ping.TotalTime = readBody.Sub(dnsStartTime)
 
 	return ping, err
 }
