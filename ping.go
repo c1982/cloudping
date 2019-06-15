@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptrace"
+	"sort"
 	"sync"
 	"time"
 )
@@ -38,6 +39,12 @@ func init() {
 	}
 }
 
+type Pinglist []PingItem
+
+func (pl Pinglist) Len() int           { return len(pl) }
+func (pl Pinglist) Swap(i, j int)      { pl[i], pl[j] = pl[j], pl[i] }
+func (pl Pinglist) Less(i, j int) bool { return pl[i].TotalTime < pl[j].TotalTime }
+
 type CloudPing struct {
 }
 
@@ -56,26 +63,34 @@ func NewCloudPing() *CloudPing {
 	return &CloudPing{}
 }
 
-func (c *CloudPing) RunAWSTest() []PingItem {
+func (c *CloudPing) Ping(method, url string) PingItem {
 
-	list := []PingItem{}
+	pi := c.do(method, url)
+	pi.Region = "unknown"
+
+	return pi
+}
+
+func (c *CloudPing) RunAWSTest() Pinglist {
+
+	list := Pinglist{}
 
 	for region, uri := range awsendpoints {
 
-		var pi = PingItem{}
+		pi := c.do("GET", uri)
 		pi.Region = region
-		pi, pi.Err = c.do("GET", uri)
 
 		list = append(list, pi)
 	}
 
+	sort.Sort(list)
 	return list
 }
 
-func (c *CloudPing) RunAWSTestAsync() []PingItem {
+func (c *CloudPing) RunAWSTestAsync() Pinglist {
 
 	var wg sync.WaitGroup
-	var items = []PingItem{}
+	var items = Pinglist{}
 
 	for rg, u := range awsendpoints {
 
@@ -83,8 +98,7 @@ func (c *CloudPing) RunAWSTestAsync() []PingItem {
 
 		go func(region, uri string, wag *sync.WaitGroup) {
 
-			pi, err := c.do("GET", uri)
-			pi.Err = err
+			pi := c.do("GET", uri)
 			pi.Region = region
 
 			items = append(items, pi)
@@ -96,15 +110,17 @@ func (c *CloudPing) RunAWSTestAsync() []PingItem {
 
 	wg.Wait()
 
+	sort.Sort(items)
 	return items
 }
 
-func (c *CloudPing) do(method, url string) (ping PingItem, err error) {
+func (c *CloudPing) do(method, url string) (ping PingItem) {
 
 	req, err := c.req(method, url)
 
 	if err != nil {
-		return ping, err
+		ping.Err = err
+		return ping
 	}
 
 	ping = PingItem{}
@@ -131,7 +147,8 @@ func (c *CloudPing) do(method, url string) (ping PingItem, err error) {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return ping, err
+		ping.Err = err
+		return ping
 	}
 
 	resp.Body.Close()
@@ -147,7 +164,7 @@ func (c *CloudPing) do(method, url string) (ping PingItem, err error) {
 	ping.ContentTransfer = readBody.Sub(gotFRB)
 	ping.TotalTime = readBody.Sub(dnsStartTime)
 
-	return ping, err
+	return ping
 }
 
 func (c *CloudPing) req(method, url string) (req *http.Request, err error) {
