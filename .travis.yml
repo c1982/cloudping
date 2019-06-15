@@ -1,0 +1,19 @@
+language: go
+go:
+  - 1.12.x
+
+os:
+  - linux
+  - osx
+
+dist: trusty
+sudo: false
+
+install: true
+
+env:
+  - GO111MODULE=on
+
+script:
+  - ./cmd go build -o cping
+  - cping -aws

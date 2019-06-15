@@ -8,29 +8,28 @@ import (
 	"time"
 )
 
-var flagURL = flag.String("url", "", "for custom test URL. Default nil")
-var flagMethod = flag.String("method", "GET", "HTTP method to use. Default GET")
-var flagAWS = flag.Bool("aws", false, "Test all AWS regions enpoints. Default false")
-var flagShowBest = flag.Bool("best", false, "Show only best region. Default false")
-var flagCSV = flag.Bool("csv", false, "Output CSV format. Default false")
-
-var responseTmp = `Region: %s	Total: %7dms	DNS Lookup: %7dms	TCP Connection: %7dms	First Byte Response: %7dms	Content Transfer: %7s`
-var responseTmpCSV = `%s,%s,%s,%s,%s,%s`
+var (
+	flagURL        = flag.String("url", "", "for custom test URL. Default nil")
+	flagMethod     = flag.String("method", "GET", "HTTP method to use. Default GET")
+	flagAWS        = flag.Bool("aws", false, "Test all AWS regions enpoints. Default false")
+	flagShowBest   = flag.Bool("best", false, "Show only best region. Default false")
+	flagCSV        = flag.Bool("csv", false, "Output CSV format. Default false")
+	responseTmp    = `Region: %s	Total: %7dms	DNS Lookup: %7dms	TCP Connection: %7dms	First Byte Response: %7dms	Content Transfer: %7s`
+	responseTmpCSV = `%s,%s,%s,%s,%s,%s`
+	responseTmpErr = `Error: %v`
+	printusage     = true
+)
 
 func main() {
-	flag.Parse()
 
-	args := flag.Args()
-	if len(args) != 1 {
-		usage()
-		os.Exit(2)
-	}
+	flag.Parse()
 
 	cp := cloudping.CloudPing{}
 
 	if *flagURL != "" {
 		urlPing := cp.Ping(*flagMethod, *flagURL)
 		write(urlPing)
+		printusage = false
 	}
 
 	if *flagAWS {
@@ -44,10 +43,21 @@ func main() {
 				}
 			}
 		}
+
+		printusage = false
+	}
+
+	if printusage {
+		usage()
 	}
 }
 
 func write(p cloudping.PingItem) {
+
+	if p.Err != nil {
+		fmt.Printf(responseTmpErr, p.Err)
+		return
+	}
 
 	if *flagCSV {
 		fmt.Printf(responseTmpCSV+"\n",
@@ -71,11 +81,11 @@ func write(p cloudping.PingItem) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] URL\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS]\n\n", os.Args[0])
 	fmt.Fprintln(os.Stderr, "OPTIONS:")
 	flag.PrintDefaults()
 	fmt.Fprintln(os.Stderr, "EXAMPLE:")
-	fmt.Fprintln(os.Stderr, "  cp -aws")
-	fmt.Fprintln(os.Stderr, "  cp -aws -best -csv")
-	fmt.Fprintln(os.Stderr, "  cp -url http://maestropanel.com")
+	fmt.Fprintln(os.Stderr, "  cping -aws")
+	fmt.Fprintln(os.Stderr, "  cping -aws -best -csv")
+	fmt.Fprintln(os.Stderr, "  cping -url http://maestropanel.com")
 }
