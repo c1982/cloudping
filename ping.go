@@ -39,15 +39,18 @@ func init() {
 	}
 }
 
+//Pinglist structed of test results
 type Pinglist []PingItem
 
 func (pl Pinglist) Len() int           { return len(pl) }
 func (pl Pinglist) Swap(i, j int)      { pl[i], pl[j] = pl[j], pl[i] }
 func (pl Pinglist) Less(i, j int) bool { return pl[i].TotalTime < pl[j].TotalTime }
 
+//CloudPing main struct for logic
 type CloudPing struct {
 }
 
+//PingItem result of stats
 type PingItem struct {
 	Region            string
 	URL               string
@@ -59,10 +62,12 @@ type PingItem struct {
 	TotalTime         time.Duration
 }
 
+//NewCloudPing create a new CloudPing object
 func NewCloudPing() *CloudPing {
 	return &CloudPing{}
 }
 
+//Ping test single URL
 func (c *CloudPing) Ping(method, url string) PingItem {
 
 	pi := c.do(method, url)
@@ -71,22 +76,7 @@ func (c *CloudPing) Ping(method, url string) PingItem {
 	return pi
 }
 
-func (c *CloudPing) RunAWSTest() Pinglist {
-
-	list := Pinglist{}
-
-	for region, uri := range awsendpoints {
-
-		pi := c.do("GET", uri)
-		pi.Region = region
-
-		list = append(list, pi)
-	}
-
-	sort.Sort(list)
-	return list
-}
-
+//RunAWSTestAsync test amazon dynamodb endpoints latency
 func (c *CloudPing) RunAWSTestAsync() Pinglist {
 
 	var wg sync.WaitGroup

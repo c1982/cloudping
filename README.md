@@ -6,11 +6,11 @@ Cloud Ping is a command-line tool designed to estimate latency in AWS zones from
 
 ### Download
 
-[github.com/c1982/cloudping](github.com/c1982/cloudping)
+[https://github.com/c1982/cloudping/releases](https://github.com/c1982/cloudping/releases)
 
 ## Usage
 
-Check AWS full latency
+Check AWS endpoints latency of your location
 
 ```cping -aws```
 
