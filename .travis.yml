@@ -15,5 +15,5 @@ env:
   - GO111MODULE=on
 
 script:
-  - go instal ./...
+  - go install ./...
   - ${GOPATH}/bin/cmd -aws
