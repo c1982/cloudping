@@ -1,11 +1,12 @@
 package main
 
 import (
-	"cloudping"
 	"flag"
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/c1982/cloudping"
 )
 
 var (
