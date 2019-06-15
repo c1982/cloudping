@@ -15,6 +15,5 @@ env:
   - GO111MODULE=on
 
 script:
-  - cd ./cmd
-  - go build -o cping
-  - cping -aws
+  - go instal ./...
+  - ${GOPATH}/bin/cmd -aws
